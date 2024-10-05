@@ -1,0 +1,186 @@
+<!-- Create a Check box selectable page for permissions 	
+	VIEW = 0        # view file list
+	DOWNLOAD = 1    # download files
+	MODIFY = 2      # rename, overwrite, new folder
+	DELETE = 3      # delete files
+	UPLOAD = 4      # upload files
+	ZIP = 5         # download zip folder
+	ADMIN = 6       # admin 
+
+
+-->
+
+<html>
+<head>
+	<title>Permissions</title>
+</head>
+
+<body>
+	<form action="" method="post" class="perm_checker">
+		<table>
+			<tr>
+				<td>View</td>
+				<td><input type="checkbox" name="VIEW" value="0" id="view"></td>
+			</tr>
+			<tr>
+				<td>Download</td>
+				<td><input type="checkbox" name="DOWNLOAD" value="1" id="download"></td>
+			</tr>
+			<tr>
+				<td>Modify</td>
+				<td><input type="checkbox" name="MODIFY" value="2" id="modify"></td>
+			</tr>
+			<tr>
+				<td>Delete</td>
+				<td><input type="checkbox" name="DELETE" value="3" id="delete"></td>
+			</tr>
+			<tr>
+				<td>Upload</td>
+				<td><input type="checkbox" name="UPLOAD" value="4" id="upload"></td>
+			</tr>
+			<tr>
+				<td>Zip</td>
+				<td><input type="checkbox" name="ZIP" value="5" id="zip"></td>
+			</tr>
+			<tr>
+				<td>Admin</td>
+				<td><input type="checkbox" name="ADMIN" value="6" id="admin"></td>
+			</tr>
+		</table>
+	
+		<div class="submit_parent">
+			<input type="submit" name="submit" value="Submit" id="submit">
+		</div>
+		
+	</form>
+	
+	<!-- 
+	on submit, get all the values and put them in a dict object
+	if admin is checked, all other values are checked -->
+	
+	<script>
+	{
+		var view = document.getElementById("view");
+		var download = document.getElementById("download");
+		var modify = document.getElementById("modify");
+		var delete_ = document.getElementById("delete");
+		var upload = document.getElementById("upload");
+		var zip = document.getElementById("zip");
+		var admin = document.getElementById("admin");
+	
+		var submit = document.getElementById("submit");
+	
+		submit.onclick = function() {
+			var dict = {};
+			dict["VIEW"] = view.checked;
+			dict["DOWNLOAD"] = download.checked;
+			dict["MODIFY"] = modify.checked;
+			dict["DELETE"] = delete_.checked;
+			dict["UPLOAD"] = upload.checked;
+			dict["ZIP"] = zip.checked;
+			dict["ADMIN"] = admin.checked;
+
+			
+			var _user = new User();
+			user.permissions = dict;
+			var perms = user.pack_permissions();
+			
+			fetch('/?update_user_perm=' + username + "&perms=" + perms)
+			.then(response => response.json())
+			.then(data => {
+				popup_msg.createPopup(data["status"], data["message"]);
+				popup_msg.open_popup();
+			})
+			.catch(err => {
+				console.log(err);
+			})
+		}
+		
+	
+		admin.onclick = function() {
+			if (admin.checked) {
+				view.checked = true;
+				download.checked = true;
+				modify.checked = true;
+				delete_.checked = true;
+				upload.checked = true;
+				zip.checked = true;
+			}
+		}
+	
+	}
+	
+	</script>
+	
+	<!-- make the table and input look modern 
+	keep the submit button in center, modernize the button UI-->
+	<style>
+		.perm_checker table {
+			border-collapse: collapse;
+			width: 100%;
+			color: #afafaf;
+			font-family: monospace;
+			font-size: 25px;
+			text-align: left;
+		}
+		.perm_checker tr:nth-child(even) {background-color: #4d4d4d}
+	
+		.perm_checker td:nth-child(1){
+			text-align: left;
+			width: calc(100% - 50px);
+		}
+	
+		.perm_checker td:nth-child(2){
+			text-align: center;
+			width: 50px;
+		}
+	
+	
+		.perm_checker input[type=checkbox] {
+			-moz-appearance:none;
+			-webkit-appearance:none;
+			-o-appearance:none;
+			outline: none;
+			content: none;	
+		}
+	
+		.perm_checker input[type=checkbox]:before {
+			content: "✅";
+			font-size: 17px;
+			color: transparent !important;
+			background: #636363;
+			display: block;
+			width: 17px;
+			height: 17px;
+			border: 1px solid black;
+		}
+	
+		.perm_checker input[type=checkbox]:checked:before {
+			color: black !important;
+		}
+	
+		.perm_checker input[type=submit] {
+			background-color: #272727;
+			color: white;
+			font-family: monospace;
+			font-size: 25px;
+			text-align: center;
+			border: none;
+			width: 60%;
+			padding: 15px 32px;
+			text-decoration: none;
+			display: inline-block;
+			margin: 4px 2px;
+			cursor: pointer;
+		}
+	
+		.perm_checker input[type=submit]:hover {
+			background-color: #4d4d4d;
+		}
+	
+		.perm_checker .submit_parent {
+			display: flex;
+			justify-content: center;
+		}
+	
+	</style>
