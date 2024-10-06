@@ -58,7 +58,7 @@ import traceback
 from typing import Any, Generator, Union
 
 try:
-	from tabulate import tabulate # pip install tabulate2
+	from tabulate2 import tabulate # pip install tabulate2
 	TABLE = True
 except ImportError:
 	logger.error("tabulate not found, install it using `pip install tabulate2`\n * Printing table will not be in tabular format")
@@ -869,6 +869,8 @@ class PickleTable(dict):
 
 			self._pk.db[name].extend([None] * tsize)
 
+
+		# if the 1st argument is a list, unpack it
 		if isinstance(names[0], Iterable) and not isinstance(names[0], str) and not isinstance(names[0], bytes) and len(names) == 1:
 			names = names[0]
 
@@ -1859,6 +1861,15 @@ class _PickleTRow(dict):
 		# self.id: unique id of the row
 		self.id = uid
 		self.CC = CC
+		self.deleted = True
+
+	def is_deleted(self):
+		"""
+		return True if the row is deleted
+		"""
+		if not self.deleted or self.id not in self.source.ids:
+			self.deleted = False
+			raise ValueError(f"Row has been deleted. Invalid row object (last known id: {self.id})")
 
 	def __getitem__(self, name):
 		self.source.raise_source(self.CC)
@@ -1875,15 +1886,18 @@ class _PickleTRow(dict):
 		"""
 		returns a copy of the row as dict
 		"""
+		self.is_deleted()
 		return {k: self[k] for k in self.source.column_names}
 
 	def get(self, name, default=None, rescan=True):
+		self.is_deleted()
 		if name not in self.source.column_names_func(rescan=rescan):
 			return default
 
 		return self[name]
 
 	def get_cell_obj(self, name, default=None, rescan=True):
+		self.is_deleted()
 		if name not in self.source.column_names_func(rescan=rescan):
 			return default
 
@@ -1896,6 +1910,7 @@ class _PickleTRow(dict):
 		* AD: auto dump
 		"""
 		# Auto dumps
+		self.is_deleted()
 		self.source.raise_source(self.CC)
 
 		if isinstance(value, _PickleTCell):
@@ -1915,6 +1930,7 @@ class _PickleTRow(dict):
 		* name: column name
 		* AD: auto dump
 		"""
+		self.is_deleted()
 		self.source.raise_source(self.CC)
 
 		self.source.set_cell_by_id(name, self.id, None, AD=AD)
@@ -1931,6 +1947,7 @@ class _PickleTRow(dict):
 		"""
 		returns the current index of the row
 		"""
+		self.is_deleted()
 		return self.source.ids.index(self.id)
 
 	def update(self, new:Union[dict, "_PickleTRow"], ignore_extra=False, AD=True):
@@ -1940,6 +1957,7 @@ class _PickleTRow(dict):
 		- ignore_extra: ignore extra keys in new dict
 		- AD: Auto dumps
 		"""
+		self.is_deleted()
 
 		for k, v in new.items():
 			try:
@@ -1951,9 +1969,13 @@ class _PickleTRow(dict):
 		self.source.auto_dump(AD=AD)
 
 	def __str__(self):
-		return str({k:v for k, v in self.items()})
+		return "<PickleTable._PickleTRow object> " + str(self.to_dict())
+
+	def __repr__(self):
+		return str(self.to_dict())
 
 	def keys(self):
+		self.is_deleted()
 		return self.source.column_names
 
 	def values(self):
@@ -1982,17 +2004,23 @@ class _PickleTRow(dict):
 		# This will also invalidate this object. Handle with care
 		"""
 		# Auto dumps
+		self.is_deleted()
 		self.source.raise_source(self.CC)
 
 		self.source.del_row_id(self.id)
+
+		self.deleted = False
 
 	def to_list(self) -> list:
 		"""
 		returns the row as list
 		"""
+		self.is_deleted()
+
 		return [self[k] for k in self.source.column_names]
 
 	def __eq__(self, other):
+		self.is_deleted()
 		try:
 			for k in self.source.column_names:
 				if self[k] != other[k]:
@@ -2002,6 +2030,7 @@ class _PickleTRow(dict):
 			return False
 
 	def __ne__(self, other):
+		self.is_deleted()
 		return not self.__eq__(other)
 		
 
@@ -2011,12 +2040,19 @@ class _PickleTColumn(list):
 		self.source = source
 		self.name = name
 		self.CC = CC
+		self.deleted = True
+
+	def is_deleted(self):
+		if not self.deleted or self.name not in self.source.column_names_func(rescan=False):
+			self.deleted = False
+			raise ValueError(f"Column has been deleted. Invalid column object (last known name: {self.name})")
 
 	def __getitem__(self, row:Union[int, slice]):
 		"""
 		row: the index of row (not id)
 		"""
-		# self.source.raise_source(self.CC)
+		self.is_deleted()
+
 		if isinstance(row, int):
 			return self.source.get_cell(col=self.name, row=row)
 		elif isinstance(row, slice):
@@ -2025,6 +2061,7 @@ class _PickleTColumn(list):
 			raise TypeError("indices must be integers or slices, not {}".format(type(row).__name__))
 
 	def __len__(self) -> int:
+		self.is_deleted()
 		return self.source.height
 
 	def re__name(self, new_name, AD=True):
@@ -2034,6 +2071,7 @@ class _PickleTColumn(list):
 		- new_name: new name of the column
 		- AD: auto dump
 		"""
+		self.is_deleted()
 		self.source.raise_source(self.CC)
 
 		self.source.add_column(new_name, exist_ok=True, AD=False)
@@ -2047,6 +2085,7 @@ class _PickleTColumn(list):
 		"""
 		get the cell value from the column by row index
 		"""
+		self.is_deleted()
 		if not isinstance(row, int):
 			return default
 		if row > (self.source.height-1):
@@ -2055,6 +2094,7 @@ class _PickleTColumn(list):
 		return self[row]
 
 	def get_cell_obj(self, row:int, default=None):
+		self.is_deleted()
 		if not isinstance(row, int):
 			return default
 		if row > (self.source.height-1):
@@ -2069,6 +2109,7 @@ class _PickleTColumn(list):
 		* AD: auto dump
 		"""
 
+		self.is_deleted()
 		# self.source.raise_source(self.CC)
 
 		if isinstance(value, _PickleTCell):
@@ -2091,6 +2132,7 @@ class _PickleTColumn(list):
 		* row: row index (not id)
 		* AD: auto dump
 		"""
+		self.is_deleted()
 		self.source.set_cell(self.name, row, None, AD=AD)
 
 	def __delitem__(self, row:int):
@@ -2107,16 +2149,19 @@ class _PickleTColumn(list):
 		"""
 		returns the column as list
 		"""
+		self.is_deleted()
 		return [i.value for i in self]
 
 	def source_list(self):
 		"""
 		returns the column list as a pointer
 		"""
+		self.is_deleted()
 		return self.source.get_column(self.name)
 
 	def get_cells_obj(self, start:int=0, end:int=None, sep:int=1):
 		"""Return a list of all rows in db"""
+		self.is_deleted()
 		if end is None:
 			end = self.source.height
 		if end<0:
@@ -2143,6 +2188,7 @@ class _PickleTColumn(list):
 		@ Auto dumps
 		- column: list of values to update
 		"""
+		self.is_deleted()
 		self.source.raise_source(self.CC)
 
 		if isinstance(column, self.__class__):
@@ -2160,6 +2206,7 @@ class _PickleTColumn(list):
 		- This will remove the occurrences of the value in the column (from top to bottom)
 		- n_times: number of occurrences to remove (0: all)
 		"""
+		self.is_deleted()
 		for i in self:
 			if i == value:
 				i.clear()
@@ -2174,6 +2221,7 @@ class _PickleTColumn(list):
 		@ Auto dumps
 		# This will Set all cells in column to `None`
 		"""
+		self.is_deleted()
 
 		self.source.raise_source(self.CC)
 		self.source.rescan(rescan=rescan)
@@ -2186,16 +2234,27 @@ class _PickleTColumn(list):
 
 
 	def __str__(self):
-		return str(self.source.get_column(self.name))
+		self.is_deleted()
+
+		return "<PickleTable._PickleTColumn object> " + str(self.source.get_column(self.name))
+
+	def __repr__(self):
+		self.is_deleted()
+		
+		return repr(self.source.get_column(self.name))
 
 	def del_column(self):
 		"""
 		@ Auto dumps
 		# This will also invalidate this object. Handle with care
 		"""
+		self.is_deleted()
+
 		self.source.raise_source(self.CC)
 
 		self.source.del_column(self.name)
+
+		self.deleted = False
 
 
 	def apply(self, func=None, row_func=False, copy=False, AD=True):
@@ -2203,6 +2262,7 @@ class _PickleTColumn(list):
 		Apply a function to all cells in the column
 		Overwrites the existing values
 		"""
+		self.is_deleted()
 		ret = []
 		if row_func:
 			for i in range(self.source.height):
@@ -2345,6 +2405,21 @@ if __name__ == "__main__":
 		print("Height:", tb.height)
 		print("Table:")
 		print(tb)
+
+
+		print("="*50)
+		print("\n\n STR and REPR test")
+		tb.clear()
+		tb.add_row({"x":1, "Y":2, "Z":3})
+		tb.add_row({"x":4, "Y":5, "Z":6})
+		tb.add_row({"x":7, "Y":8, "Z":9})
+
+		print("Row 1 STR:", tb.row_obj(0))
+		print("Row 1 REPR:", repr(tb.row_obj(0)))
+
+		print("Column Y STR:", tb.column_obj("Y"))
+		print("Column Y REPR:", repr(tb.column_obj("Y")))
+
 
 
 		print("="*50)
@@ -2505,6 +2580,43 @@ if __name__ == "__main__":
 
 		print("✅TEST [REMOVE DUPLICATES]: Passed")
 
+		print("="*50)
+
+		print("\n\n Row deletion test")
+
+		tb.clear()
+
+		tb.add_row({"x":1, "Y":2})
+		tb.add_row({"x":1, "Y":2})
+
+		_tr = tb.row_obj(0)
+		_tr.del_row()
+		try:
+			_tr["x"]
+			raise Exception("❌TEST [ROW DEL]: Failed")
+		except ValueError as e:
+			print("✅TEST [ROW DEL]: Passed")
+			print("Error message = ", e)
+
+		print("="*50)
+
+		print("\n\n Column deletion test")
+
+		tb.clear()
+
+		tb.add_row({"x":1, "Y":2})
+		tb.add_row({"x":1, "Y":2})
+
+		_tc = tb.column_obj("x")
+		_tc.del_column()
+		try:
+			_tc[0]
+			raise Exception("❌TEST [COL DEL]: Failed")
+		except ValueError as e:
+			print("✅TEST [COL DEL]: Passed")
+			print("Error message = ", e)
+
+		tb.add_column("x", exist_ok=True) # bring back the column
 		print("="*50)
 
 
